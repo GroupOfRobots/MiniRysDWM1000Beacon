@@ -39,55 +39,53 @@
 #ifndef __MAIN_H
 #define __MAIN_H
   /* Includes ------------------------------------------------------------------*/
-#include "stm32f3xx_ll_rcc.h"
-#include "stm32f3xx_ll_bus.h"
-#include "stm32f3xx_ll_system.h"
-#include "stm32f3xx_ll_exti.h"
-#include "stm32f3xx_ll_cortex.h"
-#include "stm32f3xx_ll_utils.h"
-#include "stm32f3xx_ll_pwr.h"
-#include "stm32f3xx_ll_dma.h"
-#include "stm32f3xx_ll_rtc.h"
-#include "stm32f3xx_ll_spi.h"
-#include "stm32f3xx.h"
-#include "stm32f3xx_ll_gpio.h"
 
 /* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
 
-#define DWM_RST_Pin LL_GPIO_PIN_2
+#define DWM_RST_Pin GPIO_PIN_2
 #define DWM_RST_GPIO_Port GPIOA
-#define DWM_IRQ_Pin LL_GPIO_PIN_3
+#define DWM_IRQ_Pin GPIO_PIN_3
 #define DWM_IRQ_GPIO_Port GPIOA
 #define DWM_IRQ_EXTI_IRQn EXTI3_IRQn
-#define SWDIO_Pin LL_GPIO_PIN_13
+#define SWDIO_Pin GPIO_PIN_13
 #define SWDIO_GPIO_Port GPIOA
-#define SWCLK_Pin LL_GPIO_PIN_14
+#define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
-#ifndef NVIC_PRIORITYGROUP_0
-#define NVIC_PRIORITYGROUP_0         ((uint32_t)0x00000007) /*!< 0 bit  for pre-emption priority,
-                                                                 4 bits for subpriority */
-#define NVIC_PRIORITYGROUP_1         ((uint32_t)0x00000006) /*!< 1 bit  for pre-emption priority,
-                                                                 3 bits for subpriority */
-#define NVIC_PRIORITYGROUP_2         ((uint32_t)0x00000005) /*!< 2 bits for pre-emption priority,
-                                                                 2 bits for subpriority */
-#define NVIC_PRIORITYGROUP_3         ((uint32_t)0x00000004) /*!< 3 bits for pre-emption priority,
-                                                                 1 bit  for subpriority */
-#define NVIC_PRIORITYGROUP_4         ((uint32_t)0x00000003) /*!< 4 bits for pre-emption priority,
-                                                                 0 bit  for subpriority */
-#endif
-
-/* ########################## Assert Selection ############################## */
-/**
-  * @brief Uncomment the line below to expanse the "assert_param" macro in the 
-  *        HAL drivers code
-  */
-/* #define USE_FULL_ASSERT    1 */
+#define USR_LED_Pin GPIO_PIN_3
+#define USR_LED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+
+/*** DWM defines ***/
+
+// Example 01a defines
+// Index to access to sequence number of the blink frame in the tx_msg array.
+#define BLINK_FRAME_SN_IDX 1
+// Inter-frame delay period, in milliseconds.
+#define TX_DELAY_MS 1000
+
+// Example 06b defines
+
+// Default antenna delay values for 64 MHz PRF.
+#define TX_ANT_DLY 16436
+#define RX_ANT_DLY 16436
+// Length of the common part of the message (up to and including the function code,
+#define ALL_MSG_COMMON_LEN 10
+// Index to access some of the fields in the frames involved in the process.
+#define ALL_MSG_SN_IDX 2
+#define RESP_MSG_POLL_RX_TS_IDX 10
+#define RESP_MSG_RESP_TX_TS_IDX 14
+#define RESP_MSG_TS_LEN 4
+// Receive buffer length
+#define RX_BUF_LEN 12
+// UWB microsecond (uus) to device time unit (dtu, around 15.65 ps) conversion factor.
+// 1 uus = 512 / 499.2 µs and 1 µs = 499.2 * 128 dtu.
+#define UUS_TO_DWT_TIME 65536
+// Delay between frames, in UWB microseconds.
+#define POLL_RX_TO_RESP_TX_DLY_UUS 330
 
 /* USER CODE END Private defines */
 

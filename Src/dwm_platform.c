@@ -12,80 +12,46 @@
  */
 
 #include "dwm_platform.h"
-
-#include "stm32_assert.h"
 #include "deca_types.h"
 #include "deca_device_api.h"
 
-/* DW1000 IRQ handler definition. */
-port_deca_isr_t port_deca_isr = NULL;
-
-/* System tick 32 bit variable defined by the platform */
-extern volatile unsigned long time32_incr;
-
-unsigned long portGetTickCnt(void)
-{
-	return time32_incr;
-}
-
 /**
-  * @brief  Checks whether the specified EXTI line is enabled or not.
-  * @param  EXTI_Line: specifies the EXTI line to check.
-  *   This parameter can be:
-  *     @arg EXTI_Linex: External interrupt line x where x(0..19)
-  * @retval The "enable" state of EXTI_Line (SET or RESET).
-  */
-ITStatus EXTI_GetITEnStatus(uint32_t EXTI_Line)
-{
-  ITStatus bitstatus = RESET;
-  uint32_t enablestatus = 0;
-  /* Check the parameters */
-  assert_param(IS_GET_EXTI_LINE(EXTI_Line));
-
-  enablestatus =  EXTI->IMR & EXTI_Line;
-  if (enablestatus != (uint32_t)RESET)
-  {
-	bitstatus = SET;
-  }
-  else
-  {
-	bitstatus = RESET;
-  }
-  return bitstatus;
-}
-
-void port_set_deca_isr(port_deca_isr_t deca_isr)
-{
-	/* Check DW1000 IRQ activation status. */
-	ITStatus en = port_GetEXT_IRQStatus();
-
-	/* If needed, deactivate DW1000 IRQ during the installation of the new handler. */
-	if (en)
-	{
-		port_DisableEXT_IRQ();
-	}
-	port_deca_isr = deca_isr;
-	if (en)
-	{
-		port_EnableEXT_IRQ();
+ * @brief Checks whether the specified EXTI line is enabled or not.
+ * @param EXTI_Line: specifies the EXTI line to check.
+ *   This parameter can be:
+ *     @arg EXTI_Linex: External interrupt line x where x(0..19)
+ * @retval The "enable" state of EXTI_Line (SET or RESET).
+ */
+ITStatus EXTI_GetITEnStatus(uint32_t EXTI_Line) {
+	if ((EXTI->IMR & EXTI_Line) != (uint32_t)RESET) {
+		return SET;
+	} else {
+		return RESET;
 	}
 }
 
-void spi_set_rate_low (void)
-{
-	LL_SPI_SetBaudRatePrescaler(SPIx, LL_SPI_BAUDRATEPRESCALER_DIV32);
+void spi_set_rate_low(void) {
+	// hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+	// if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+	// 	_Error_Handler(__FILE__, __LINE__);
+	// }
 }
 
-void spi_set_rate_high (void)
-{
-	LL_SPI_SetBaudRatePrescaler(SPIx, LL_SPI_BAUDRATEPRESCALER_DIV4);
+void spi_set_rate_high(void) {
+	// hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	// if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+	// 	_Error_Handler(__FILE__, __LINE__);
+	// }
 }
 
-void reset_DW1000(void)
-{
-	//drive the RSTn pin low
-	LL_GPIO_ResetOutputPin(DW1000_RSTn_GPIO, DW1000_RSTn);
-
+void reset_DW1000(void) {
+	// Drive the RSTn pin low
+	HAL_GPIO_WritePin(DW1000_RSTn_GPIO, DW1000_RSTn, GPIO_PIN_RESET);
+	// Wait 2ms
+	sleep_ms(2);
+	// Drive the RSTn pin high
+	HAL_GPIO_WritePin(DW1000_RSTn_GPIO, DW1000_RSTn, GPIO_PIN_SET);
+	// Wait 2ms
 	sleep_ms(2);
 }
 
@@ -100,36 +66,26 @@ void reset_DW1000(void)
  * Takes two separate byte buffers for write header and write data
  * returns 0 for success, or -1 for error
  */
-int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength, const uint8 *bodyBuffer)
-{
-	int i=0;
-
-	decaIrqStatus_t  stat;
-
+int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodyLength, const uint8 *bodyBuffer) {
+	decaIrqStatus_t stat;
 	stat = decamutexon();
 
-	SPIx_CS_GPIO->BRR = SPIx_CS;
-
-	for(i=0; i<headerLength; i++) {
-		SPIx->DR = headerBuffer[i];
-
-		while (port_SPIx_no_data()) {}
-
-		SPIx->DR;
+	uint8_t headBuf[headerLength];
+	for (int i = 0; i < headerLength; ++i) {
+		headBuf[i] = headerBuffer[i];
+	}
+	uint8_t bodyBuf[bodyLength];
+	for (int i = 0; i < bodyLength; ++i) {
+		bodyBuf[i] = bodyBuffer[i];
 	}
 
-	for(i=0; i<bodylength; i++) {
-		SPIx->DR = bodyBuffer[i];
+	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 0);
+	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
 
-		while (port_SPIx_no_data()) {}
-
-		SPIx->DR;
-	}
-
-	SPIx_CS_GPIO->BSRR = SPIx_CS;
+	HAL_SPI_Transmit(&hspi1, bodyBuf, bodyLength, 0);
+	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
 
 	decamutexoff(stat);
-
 	return 0;
 }
 
@@ -141,45 +97,23 @@ int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength
  * returns the offset into read buffer where first byte of read data may be found,
  * or returns -1 if there was an error
  */
-// #pragma GCC optimize ("O3")
-int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlength, uint8 *readBuffer)
-{
-	int i=0;
-
+int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlength, uint8 *readBuffer) {
 	decaIrqStatus_t stat;
-
 	stat = decamutexon();
 
-	/* Wait for SPIx Tx buffer empty */
-	while (port_SPIx_busy_sending()) {}
-
-	SPIx_CS_GPIO->BRR = SPIx_CS;
-
-	for(i=0; i<headerLength; i++)
-	{
-		SPIx->DR = headerBuffer[i];
-
-		while (port_SPIx_no_data()) {}
-
-		// Dummy read as we write the header
-		readBuffer[0] = SPIx->DR;
+	uint8_t headBuf[headerLength];
+	for (int i = 0; i < headerLength; ++i) {
+		headBuf[i] = headerBuffer[i];
 	}
 
-	for(i=0; i<readlength; i++)
-	{
-		// Dummy write as we read the message body
-		SPIx->DR = 0;
+	while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
 
-		while (port_SPIx_no_data()) {}
+	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 0);
+	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
 
-		//this clears RXNE bit
-		readBuffer[i] = SPIx->DR;
-	}
-
-	SPIx_CS_GPIO->BSRR = SPIx_CS;
+	HAL_SPI_Receive(&hspi1, readBuffer, readlength, 0);
 
 	decamutexoff(stat);
-
 	return 0;
 }
 
@@ -188,17 +122,12 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 /*********/
 
 /* Wrapper function to be used by decadriver. Declared in deca_device_api.h */
-void deca_sleep(unsigned int time_ms)
-{
+void deca_sleep(unsigned int time_ms) {
 	sleep_ms(time_ms);
 }
 
-void sleep_ms(unsigned int time_ms)
-{
-	/* This assumes that the tick has a period of exactly one millisecond. */
-	unsigned long end = portGetTickCount() + time_ms;
-	while ((signed long)(portGetTickCount() - end) <= 0)
-	   ;
+void sleep_ms(unsigned int time_ms) {
+	HAL_Delay(time_ms);
 }
 
 /*********/
@@ -226,7 +155,6 @@ void sleep_ms(unsigned int time_ms)
 //     __restore_intstate()
 // ---------------------------------------------------------------------------
 
-
 /*! ------------------------------------------------------------------------------------------------------------------
  * Function: decamutexon()
  *
@@ -241,14 +169,16 @@ void sleep_ms(unsigned int time_ms)
  *
  * returns the state of the DW1000 interrupt
  */
-decaIrqStatus_t decamutexon(void)
-{
+decaIrqStatus_t decamutexon(void) {
 	decaIrqStatus_t s = port_GetEXT_IRQStatus();
 
-	if(s) {
-		port_DisableEXT_IRQ(); //disable the external interrupt line
+	// disable the external interrupt line
+	if (s) {
+		port_DisableEXT_IRQ();
 	}
-	return s;   // return state before disable, value is used to re-enable in decamutexoff call
+
+	// return state before disable, value is used to re-enable in decamutexoff call
+	return s;
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------
@@ -266,9 +196,10 @@ decaIrqStatus_t decamutexon(void)
  *
  * returns the state of the DW1000 interrupt
  */
-void decamutexoff(decaIrqStatus_t s)        // put a function here that re-enables the interrupt at the end of the critical section
-{
-	if(s) { //need to check the port state as we can't use level sensitive interrupt on the STM ARM
+void decamutexoff(decaIrqStatus_t s) {
+	// put a function here that re-enables the interrupt at the end of the critical section
+	// need to check the port state as we can't use level sensitive interrupt on the STM ARM
+	if (s) {
 		port_EnableEXT_IRQ();
 	}
 }

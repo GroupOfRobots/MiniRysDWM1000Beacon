@@ -1736,7 +1736,7 @@ void dwt_write8bitoffsetreg(int regFileID, int regOffset, uint8 regval);
  *
  * returns DWT_SUCCESS for success, or DWT_ERROR for error
  */
-int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength, const uint8 *bodyBuffer);
+int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodyLength, const uint8 *bodyBuffer);
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn readfromspi()
@@ -1777,7 +1777,6 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 // ---------------------------------------------------------------------------
 
 typedef int decaIrqStatus_t ; // Type for remembering IRQ status
-
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn decamutexon()

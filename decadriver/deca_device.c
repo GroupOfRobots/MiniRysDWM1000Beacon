@@ -84,6 +84,8 @@ typedef struct
 static dwt_local_data_t dw1000local[DWT_NUM_DW_DEV] ; // Static local device data, can be an array to support multiple DW1000 testing applications/platforms
 static dwt_local_data_t *pdw1000local = dw1000local ; // Static local data structure pointer
 
+static volatile uint32 devid;
+
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn dwt_setlocaldataptr()
  *
@@ -154,7 +156,8 @@ int dwt_initialise(uint16 config)
     pdw1000local->cbRxErr = NULL;
 
     // Read and validate device ID return -1 if not recognised
-    if (DWT_DEVICE_ID != dwt_readdevid()) // MP IC ONLY (i.e. DW1000) FOR THIS CODE
+    devid = dwt_readdevid();
+    if (DWT_DEVICE_ID != devid) // MP IC ONLY (i.e. DW1000) FOR THIS CODE
     {
         return DWT_ERROR ;
     }

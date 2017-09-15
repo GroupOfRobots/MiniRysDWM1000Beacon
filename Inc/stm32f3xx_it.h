@@ -40,12 +40,15 @@
 #endif 
 
 /* Includes ------------------------------------------------------------------*/
+#include "stm32f3xx_hal.h"
 #include "main.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 
+void DebugMon_Handler(void);
+void PendSV_Handler(void);
 void SysTick_Handler(void);
 void EXTI3_IRQHandler(void);
 

@@ -1,0 +1,31 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": [
+				"build",
+				".dep",
+				"Debug",
+				"Release",
+				".settings"
+			]
+		}
+	],
+	"settings": {
+		"ecc_common_flags": [
+			"-I/usr/include",
+			"-I/usr/lib/clang/$clang_version/include",
+			"-I$project_base_path/Drivers/CMSIS/Include",
+			"-I$project_base_path/Drivers/CMSIS/Device/ST/STM32F3xx/Include",
+			"-I$project_base_path/Drivers/STM32F3xx_HAL_Driver/Inc",
+			"-I$project_base_path/Inc",
+			"-I$project_base_path/decadriver",
+			"-DSTM32F303x8",
+			"-DRUN_FROM_FLASH",
+			"-DUSE_HAL_DRIVER",
+			"-DDWM_TRANSMITTER=1"
+		],
+		"use_libclang": true
+	}
+}

@@ -55,6 +55,8 @@ dkms.conf
 # Build directories
 build
 .dep
+/Debug/
+/Release/
 
 # Editor files
-*.sublime-*
+*.sublime-workspace
