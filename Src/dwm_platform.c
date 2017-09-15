@@ -31,26 +31,36 @@ ITStatus EXTI_GetITEnStatus(uint32_t EXTI_Line) {
 }
 
 void spi_set_rate_low(void) {
-	// hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-	// if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-	// 	_Error_Handler(__FILE__, __LINE__);
-	// }
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		_Error_Handler(__FILE__, __LINE__);
+	}
 }
 
 void spi_set_rate_high(void) {
-	// hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-	// if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-	// 	_Error_Handler(__FILE__, __LINE__);
-	// }
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		_Error_Handler(__FILE__, __LINE__);
+	}
 }
 
 void reset_DW1000(void) {
-	// Drive the RSTn pin low
+	GPIO_InitTypeDef GPIO_InitStruct;
+
+	// Make the RSTn pin an output and drive it low
+	GPIO_InitStruct.Pin = DWM_RST_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	HAL_GPIO_Init(DWM_RST_GPIO_Port, &GPIO_InitStruct);
 	HAL_GPIO_WritePin(DW1000_RSTn_GPIO, DW1000_RSTn, GPIO_PIN_RESET);
+
 	// Wait 2ms
 	sleep_ms(2);
+
+	// Switch the pin to high impendance - input/nopull
 	// Drive the RSTn pin high
-	HAL_GPIO_WritePin(DW1000_RSTn_GPIO, DW1000_RSTn, GPIO_PIN_SET);
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	HAL_GPIO_Init(DWM_RST_GPIO_Port, &GPIO_InitStruct);
+
 	// Wait 2ms
 	sleep_ms(2);
 }
@@ -79,11 +89,15 @@ int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodyLength
 		bodyBuf[i] = bodyBuffer[i];
 	}
 
-	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 0);
-	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
+	HAL_GPIO_WritePin(SPIx_CS_GPIO, SPIx_CS, GPIO_PIN_RESET);
 
-	HAL_SPI_Transmit(&hspi1, bodyBuf, bodyLength, 0);
-	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
+	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 5);
+	while(HAL_SPI_GetState(&hspi1) == HAL_SPI_STATE_BUSY) {}
+
+	HAL_SPI_Transmit(&hspi1, bodyBuf, bodyLength, 5);
+	while(HAL_SPI_GetState(&hspi1) == HAL_SPI_STATE_BUSY) {}
+
+	HAL_GPIO_WritePin(SPIx_CS_GPIO, SPIx_CS, GPIO_PIN_SET);
 
 	decamutexoff(stat);
 	return 0;
@@ -105,13 +119,19 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 	for (int i = 0; i < headerLength; ++i) {
 		headBuf[i] = headerBuffer[i];
 	}
+	for (int i = 0; i < readlength; ++i) {
+		readBuffer[i] = 0;
+	}
 
-	while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
+	HAL_GPIO_WritePin(SPIx_CS_GPIO, SPIx_CS, GPIO_PIN_RESET);
 
-	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 0);
-	while(HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
+	HAL_SPI_Transmit(&hspi1, headBuf, headerLength, 5);
+	while(HAL_SPI_GetState(&hspi1) == HAL_SPI_STATE_BUSY) {}
 
-	HAL_SPI_Receive(&hspi1, readBuffer, readlength, 0);
+	HAL_SPI_Receive(&hspi1, readBuffer, readlength, 5);
+	while(HAL_SPI_GetState(&hspi1) == HAL_SPI_STATE_BUSY) {}
+
+	HAL_GPIO_WritePin(SPIx_CS_GPIO, SPIx_CS, GPIO_PIN_SET);
 
 	decamutexoff(stat);
 	return 0;

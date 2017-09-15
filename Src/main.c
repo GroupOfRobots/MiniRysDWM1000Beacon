@@ -148,8 +148,6 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-	HAL_GPIO_WritePin(SPIx_CS_GPIO, SPIx_CS, GPIO_PIN_RESET);
-
 	#if (DWM_TRANSMITTER==1) || (DWM_RESPONDER==1)
 		// Reset and init DW1000.
 		reset_DW1000();
@@ -327,6 +325,7 @@ void SystemClock_Config(void)
 /* SPI1 init function */
 static void MX_SPI1_Init(void)
 {
+  // __HAL_RCC_SPI1_CLK_ENABLE();
 
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
@@ -335,14 +334,17 @@ static void MX_SPI1_Init(void)
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  // hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_ENABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  // hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_ENABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  // hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -375,7 +377,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : DWM_RST_Pin */
   GPIO_InitStruct.Pin = DWM_RST_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(DWM_RST_GPIO_Port, &GPIO_InitStruct);
