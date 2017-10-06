@@ -5,7 +5,7 @@
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether 
+  * USER CODE END. Other portions of this file, whether
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
@@ -61,14 +61,16 @@
 
 /*** DWM defines ***/
 
-// Example 01a defines
+// Example 01a (transmitter) defines
 // Index to access to sequence number of the blink frame in the tx_msg array.
 #define BLINK_FRAME_SN_IDX 1
 // Inter-frame delay period, in milliseconds.
 #define TX_DELAY_MS 1000
 
-// Example 06b defines
+// Example 02a (receiver) defines
+#define FRAME_LEN_MAX 127
 
+// Example 06b defines
 // Default antenna delay values for 64 MHz PRF.
 #define TX_ANT_DLY 16436
 #define RX_ANT_DLY 16436
@@ -95,11 +97,11 @@ void _Error_Handler(char *, int);
 
 /**
   * @}
-  */ 
+  */
 
 /**
   * @}
-*/ 
+*/
 
 #endif /* __MAIN_H */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

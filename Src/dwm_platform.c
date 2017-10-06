@@ -38,7 +38,7 @@ void spi_set_rate_low(void) {
 }
 
 void spi_set_rate_high(void) {
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
 	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
 		_Error_Handler(__FILE__, __LINE__);
 	}

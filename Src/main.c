@@ -95,18 +95,22 @@ static uint8 messageResponderTx[] = {0x41, 0x88, 0, 0xCA, 0xDE, 'V', 'E', 'W', '
 static uint8 frameSequenceNumber = 0;
 
 // Buffer to store received messages. Its size is adjusted to longest frame that this example code is supposed to handle.
-static uint8 receiveBuffer[RX_BUF_LEN];
+static uint8 receiveBuffer[FRAME_LEN_MAX];
+static uint8 receiveBufferResponder[RX_BUF_LEN];
 
 // Timestamps of frames transmission/reception. They are 40-bit wide - thus 64-bit type.
 static uint64_t timestampPollRx;
 static uint64_t timestampResponseTx;
 
+// Command return value. For assertions.
+static volatile int commandStatus = DWT_SUCCESS;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
+void reportError(int code, int delay, int delayFromStart);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -148,7 +152,7 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-	#if (DWM_TRANSMITTER==1) || (DWM_RESPONDER==1)
+	#if (DWM_TRANSMITTER==1) || (DWM_RESPONDER==1) || (DWM_RECEIVER==1)
 		// Reset and init DW1000.
 		reset_DW1000();
 		spi_set_rate_low();
@@ -160,13 +164,20 @@ int main(void)
 		// Configure DW1000
 		#ifdef DWM_TRANSMITTER
 			dwt_configure(&configTransmitter);
-		#else
+		#endif
+		#ifdef DWM_RECEIVER
+			dwt_configure(&configTransmitter);
+		#endif
+		#ifdef DWM_RESPONDER
 			dwt_configure(&configResponder);
+
+			// Apply default antenna delay value.
+			dwt_setrxantennadelay(RX_ANT_DLY);
+			dwt_settxantennadelay(TX_ANT_DLY);
 		#endif
 
-		// Apply default antenna delay value.
-		dwt_setrxantennadelay(RX_ANT_DLY);
-		dwt_settxantennadelay(TX_ANT_DLY);
+		// Config GPIO for TX/RX LEDs
+		// dwt_setleds(0x01);
 	#endif
 
   /* USER CODE END 2 */
@@ -179,13 +190,27 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
   #ifdef DWM_TRANSMITTER
-  	// Write frame data to DW1000 and prepare transmission.
+	uint32_t devid = dwt_readdevid();
+	if (DWT_DEVICE_ID != devid) {
+		_Error_Handler(__FILE__, __LINE__);
+	}
+	// Write frame data to DW1000 and prepare transmission.
 	// Zero offset in TX buffer.
-	dwt_writetxdata(sizeof(messageTransmitter), messageTransmitter, 0);
+	commandStatus = dwt_writetxdata(sizeof(messageTransmitter), messageTransmitter, 0);
+	if (commandStatus == DWT_ERROR) {
+		reportError(2, TX_DELAY_MS, 0);
+		continue;
+	}
+
 	// Zero offset in TX buffer, no ranging.
 	dwt_writetxfctrl(sizeof(messageTransmitter), 0, 0);
+
 	// Start transmission.
-	dwt_starttx(DWT_START_TX_IMMEDIATE);
+	commandStatus = dwt_starttx(DWT_START_TX_IMMEDIATE);
+	if (commandStatus == DWT_ERROR) {
+		reportError(3, TX_DELAY_MS, 0);
+		continue;
+	}
 
 	/* Poll DW1000 until TX frame sent event set.
 	 * STATUS register is 5 bytes long but, as the event we are looking at is in the first byte of the register,
@@ -204,18 +229,57 @@ int main(void)
 	// Execute a delay between transmissions.
 	sleep_ms(TX_DELAY_MS);
   #endif
-  #ifdef DWM_RESPONDER
-	// Activate reception immediately.
-	dwt_rxenable(DWT_START_RX_IMMEDIATE);
+  #ifdef DWM_RECEIVER
+	// Clear local RX buffer to avoid having leftovers from previous receptions.
+	for (int i = 0 ; i < FRAME_LEN_MAX; i++ ) {
+		receiveBuffer[i] = 0;
+	}
 
-	// Poll for reception of a frame or error/timeout.
-	uint32 statusRegister = dwt_read32bitreg(SYS_STATUS_ID);
+	// Activate reception immediately.
+	commandStatus = dwt_rxenable(DWT_START_RX_IMMEDIATE);
+	if (commandStatus == DWT_ERROR) {
+		reportError(4, 1000, 0);
+		continue;
+	}
+
+	// Poll until a frame is properly received or an error/timeout occurs.
+	uint32_t statusRegister = dwt_read32bitreg(SYS_STATUS_ID);
 	while (!(statusRegister & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR))) {
 		statusRegister = dwt_read32bitreg(SYS_STATUS_ID);
 	}
 
 	if (statusRegister & SYS_STATUS_RXFCG) {
-		uint32 frameLength;
+		// A frame has been received, copy it to our local buffer.
+		uint16_t frameLength = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+		if (frameLength <= FRAME_LEN_MAX) {
+			dwt_readrxdata(receiveBuffer, frameLength, 0);
+		}
+		if (frameLength > 0) {
+			// printf(receiveBuffer);
+			reportError(1, 0, 0);
+		} else {
+			reportError(2, 0, 0);
+		}
+
+		// Clear good RX frame event in the DW1000 status register.
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+	} else {
+		reportError(5, 1000, 0);
+		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
+	}
+  #endif
+  #ifdef DWM_RESPONDER
+	// Activate reception immediately.
+	dwt_rxenable(DWT_START_RX_IMMEDIATE);
+
+	// Poll for reception of a frame or error/timeout.
+	uint32_t statusRegister = dwt_read32bitreg(SYS_STATUS_ID);
+	while (!(statusRegister & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR))) {
+		statusRegister = dwt_read32bitreg(SYS_STATUS_ID);
+	}
+
+	if (statusRegister & SYS_STATUS_RXFCG) {
+		uint32_t frameLength;
 
 		// Clear good RX frame event in the DW1000 status register.
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -223,13 +287,13 @@ int main(void)
 		// A frame has been received, read it into the local buffer.
 		frameLength = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
 		if (frameLength <= RX_BUFFER_LEN) {
-			dwt_readrxdata(receiveBuffer, frameLength, 0);
+			dwt_readrxdata(receiveBufferResponder, frameLength, 0);
 		}
 
 		/* Check that the frame is a poll sent by "SS TWR initiator" example.
 		 * As the sequence number field of the frame is not relevant, it is cleared to simplify the validation of the frame. */
-		receiveBuffer[ALL_MSG_SN_IDX] = 0;
-		if (memcmp(receiveBuffer, messageResponderPoll, ALL_MSG_COMMON_LEN) == 0) {
+		receiveBufferResponder[ALL_MSG_SN_IDX] = 0;
+		if (memcmp(receiveBufferResponder, messageResponderPoll, ALL_MSG_COMMON_LEN) == 0) {
 			// Retrieve poll reception timestamp.
 			timestampPollRx = get_rx_timestamp_u64();
 
@@ -425,12 +489,33 @@ static uint64_t get_rx_timestamp_u64(void) {
  * @fn final_msg_set_ts()
  * @brief Fill a given timestamp field in the response message with the given value. In the timestamp fields of the
  *  response message, the least significant byte is at the lower address.
- * @param ts_field pointer on the first byte of the timestamp field to fill ts timestamp value
+ * @param timestampField pointer on the first byte of the timestamp field to fill ts timestamp value
  * @return none
  */
-static void resp_msg_set_ts(uint8 *ts_field, const uint64_t ts) {
+static void resp_msg_set_ts(uint8_t * timestampField, const uint64_t ts) {
 	for (int i = 0; i < RESP_MSG_TS_LEN; i++) {
-		ts_field[i] = (ts >> (i * 8)) & 0xFF;
+		timestampField[i] = (ts >> (i * 8)) & 0xFF;
+	}
+}
+
+void reportError(int code, int delay, int delayFromStart) {
+	// HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
+	// HAL_Delay(2000);
+	HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
+	HAL_Delay(500);
+	for (int j = 0; j < code * 2; ++j) {
+		HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+		HAL_Delay(300);
+	}
+
+	if (!delayFromStart) {
+		HAL_Delay(delay);
+	} else {
+		// int finalDelay = delay - 3500 - (code * 600);
+		int finalDelay = delay - 500 - (code * 600);
+		if (finalDelay > 0) {
+			HAL_Delay(finalDelay);
+		}
 	}
 }
 
